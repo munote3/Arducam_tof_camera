@@ -9,10 +9,12 @@
  * Features:
  * - Real-time depth frame capture and display
  * - Confidence-based filtering for noise reduction
+ * - Depth threshold filtering to remove far objects
  * - Interactive mouse selection for distance measurement
  * - FPS monitoring and display
  * - Depth data saving functionality
  * - Color-mapped depth visualization
+ * - Adjustable depth threshold with trackbar control
  * 
  * @author Arducam
  * @version 1.0
@@ -81,6 +83,12 @@ int max_range = 0;
  */
 int confidence_value = 30;
 
+/**
+ * @brief Depth threshold for filtering far objects
+ * Values above this threshold (in millimeters) are filtered out and displayed as black
+ */
+int depth_threshold = 2000;
+
 // ============================================================================
 // Callback Functions
 // ============================================================================
@@ -99,6 +107,20 @@ void on_confidence_changed(int pos, void* userdata)
 {
     // TODO: Implement dynamic confidence threshold adjustment
     // confidence_value = pos;
+}
+
+/**
+ * @brief Callback function for depth threshold changes
+ * 
+ * This function is called when the depth threshold trackbar value changes.
+ * It updates the global depth threshold for filtering far objects.
+ * 
+ * @param pos New depth threshold value (0-4000mm)
+ * @param userdata User data pointer (unused)
+ */
+void on_depth_threshold_changed(int pos, void* userdata)
+{
+    depth_threshold = pos;
 }
 
 // ============================================================================
@@ -210,6 +232,37 @@ void getPreviewRGB(cv::Mat preview_ptr, cv::Mat amplitude_image_ptr)
 }
 
 /**
+ * @brief Create depth threshold filtered image
+ * 
+ * This function creates a filtered depth image where pixels with depth values
+ * greater than the threshold are set to black, effectively filtering out far objects.
+ * 
+ * @param depth_frame Input depth frame (CV_32F)
+ * @param confidence_frame Input confidence frame for additional filtering
+ * @return Filtered depth image (CV_8U)
+ */
+cv::Mat createDepthThresholdImage(cv::Mat depth_frame, cv::Mat confidence_frame)
+{
+    // Create a copy of the depth frame for filtering
+    cv::Mat filtered_depth = depth_frame.clone();
+    
+    // Apply depth threshold filtering - set far pixels to 0
+    filtered_depth.setTo(0, depth_frame > depth_threshold);
+    
+    // Also apply confidence filtering
+    filtered_depth.setTo(0, confidence_frame < confidence_value);
+    
+    // Convert to 8-bit for display
+    cv::Mat result;
+    filtered_depth.convertTo(result, CV_8U, 255.0 / 7000, 0);
+    
+    // Apply rainbow color map for better visualization
+    cv::applyColorMap(result, result, cv::COLORMAP_RAINBOW);
+    
+    return result;
+}
+
+/**
  * @brief Mouse callback function for interactive region selection
  * 
  * Handles mouse events for selecting regions of interest in the depth image.
@@ -268,9 +321,14 @@ void onMouse(int event, int x, int y, int flags, void* param)
  * 1. Initialize and open the TOF camera
  * 2. Start depth frame capture
  * 3. Configure camera settings (range, etc.)
- * 4. Set up OpenCV windows and mouse callbacks
- * 5. Run main processing loop
+ * 4. Set up OpenCV windows, trackbars, and mouse callbacks
+ * 5. Run main processing loop with real-time filtering
  * 6. Clean up resources on exit
+ * 
+ * Windows:
+ * - "preview": Main depth visualization with mouse interaction
+ * - "confidence": Confidence/amplitude data display
+ * - "depth_threshold": Depth threshold filtered view with adjustable trackbar
  * 
  * @return 0 on success, -1 on error
  */
@@ -314,6 +372,12 @@ int main()
     // Create OpenCV windows
     cv::namedWindow("preview", cv::WINDOW_AUTOSIZE);
     cv::setMouseCallback("preview", onMouse);
+    
+    // Create depth threshold filtering window
+    cv::namedWindow("depth_threshold", cv::WINDOW_AUTOSIZE);
+    
+    // Create trackbar for depth threshold (0-4000mm)
+    cv::createTrackbar("Depth Threshold (mm)", "depth_threshold", &depth_threshold, 4000, on_depth_threshold_changed);
 
     // ========================================================================
     // Main Processing Loop
@@ -361,6 +425,10 @@ int main()
 
         // Display confidence window
         cv::imshow("confidence", confidence_frame);
+
+        // Create and display depth threshold filtered image
+        cv::Mat depth_threshold_image = createDepthThresholdImage(depth_frame, confidence_frame);
+        cv::imshow("depth_threshold", depth_threshold_image);
 
         // Draw selection rectangles for distance measurement
         cv::rectangle(result_frame, seletRect, cv::Scalar(0, 0, 0), 2);      // Black rectangle for selected area

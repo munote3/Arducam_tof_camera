@@ -8,10 +8,12 @@ region selection, and distance measurement capabilities.
 Features:
 - Real-time depth frame capture and display
 - Confidence-based filtering for noise reduction
+- Depth threshold filtering to remove far objects
 - Interactive mouse selection for distance measurement
 - Color-mapped depth visualization
 - Support for both VGA and HQVGA camera types
 - Dynamic confidence threshold adjustment
+- Adjustable depth threshold with trackbar control
 
 Author: Arducam
 Version: 1.0
@@ -95,6 +97,10 @@ class UserRect:
 # Values below this threshold are considered unreliable and filtered out
 confidence_value = 30
 
+# Depth threshold for filtering far objects
+# Values above this threshold (in millimeters) are filtered out and displayed as black
+depth_threshold = 2000
+
 # Rectangle objects for user interaction
 selectRect, followRect = UserRect(), UserRect()
 
@@ -119,6 +125,39 @@ def getPreviewRGB(preview: np.ndarray, confidence: np.ndarray) -> np.ndarray:
     preview = np.nan_to_num(preview)  # Handle NaN values
     preview[confidence < confidence_value] = (0, 0, 0)  # Set low confidence pixels to black
     return preview
+
+
+def create_depth_threshold_image(depth_buf: np.ndarray, confidence_buf: np.ndarray, max_range: int) -> np.ndarray:
+    """
+    Create depth threshold filtered image.
+    
+    This function creates a filtered depth image where pixels with depth values
+    greater than the threshold are set to black, effectively filtering out far objects.
+    
+    Args:
+        depth_buf (np.ndarray): Input depth data (float array)
+        confidence_buf (np.ndarray): Input confidence data for additional filtering
+        max_range (int): Maximum range of the camera for scaling
+        
+    Returns:
+        np.ndarray: Filtered depth image with rainbow color map
+    """
+    # Create a copy of the depth data for filtering
+    filtered_depth = depth_buf.copy()
+    
+    # Apply depth threshold filtering - set far pixels to 0
+    filtered_depth[depth_buf > depth_threshold] = 0
+    
+    # Also apply confidence filtering
+    filtered_depth[confidence_buf < confidence_value] = 0
+    
+    # Convert to 8-bit for visualization
+    result_image = (filtered_depth * (255.0 / max_range)).astype(np.uint8)
+    
+    # Apply rainbow color map for better visualization
+    result_image = cv2.applyColorMap(result_image, cv2.COLORMAP_RAINBOW)
+    
+    return result_image
 
 
 def on_mouse(event, x, y, flags, param):
@@ -169,6 +208,20 @@ def on_confidence_changed(value):
     confidence_value = value
 
 
+def on_depth_threshold_changed(value):
+    """
+    Callback function for depth threshold changes.
+    
+    This function is called when the depth threshold trackbar value changes.
+    It updates the global depth threshold for filtering far objects.
+    
+    Args:
+        value (int): New depth threshold value (0-4000mm)
+    """
+    global depth_threshold
+    depth_threshold = value
+
+
 def usage(argv0):
     """
     Display usage information for the application.
@@ -196,9 +249,14 @@ def main():
     1. Initialize and open the TOF camera
     2. Start depth frame capture
     3. Configure camera settings (range, etc.)
-    4. Set up OpenCV windows and mouse callbacks
-    5. Run main processing loop
+    4. Set up OpenCV windows, trackbars, and mouse callbacks
+    5. Run main processing loop with real-time filtering
     6. Clean up resources on exit
+    
+    Windows:
+    - "preview": Main depth visualization with mouse interaction
+    - "preview_confidence": Confidence/amplitude data display
+    - "depth_threshold": Depth threshold filtered view with adjustable trackbar
     """
     print("Arducam Depth Camera Demo.")
     print("  SDK version:", ac.__version__)
@@ -248,6 +306,12 @@ def main():
     cv2.namedWindow("preview", cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback("preview", on_mouse)
 
+    # Create depth threshold filtering window
+    cv2.namedWindow("depth_threshold", cv2.WINDOW_AUTOSIZE)
+    
+    # Create trackbar for depth threshold (0-4000mm)
+    cv2.createTrackbar("Depth Threshold (mm)", "depth_threshold", depth_threshold, 4000, on_depth_threshold_changed)
+
     # Add confidence trackbar for VGA cameras (only VGA supports confidence)
     if info.device_type == ac.DeviceType.VGA:
         cv2.createTrackbar(
@@ -280,6 +344,10 @@ def main():
 
             # Display confidence window
             cv2.imshow("preview_confidence", confidence_buf)
+
+            # Create and display depth threshold filtered image
+            depth_threshold_image = create_depth_threshold_image(depth_buf, confidence_buf, r)
+            cv2.imshow("depth_threshold", depth_threshold_image)
 
             # Draw selection rectangles for distance measurement
             cv2.rectangle(result_image, followRect.rect, white_color, 1)  # White rectangle for mouse follow
