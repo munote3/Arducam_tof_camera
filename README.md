@@ -1,138 +1,293 @@
-# Arducam Depth Camera
+# Arducam TOF Depth Camera SDK
 
 ## Overview
 
-This project is a use example based on arducam's depth camera. It includes basic image rendering using opencv, displaying 3D point clouds using PCL, and publishing depth camera data through the ROS2 system.
-The depth camera is the depth data obtained by calculating the phase difference based on the transmitted modulated pulse. The resolution of the camera is 240*180. Currently, it has two range modes: 2 meters and 4 meters. The measurement error is within 2 cm.
-The depth camera supports CSI and USB two connection methods, and needs an additional 5V 2A current power supply for the camera.
+This project provides a comprehensive SDK and example applications for the Arducam Time-of-Flight (TOF) depth camera. It includes real-time depth visualization, 3D point cloud generation, and ROS2 integration for robotics applications.
+
+### Camera Specifications
+
+- **Resolution**: 240×180 pixels (HQVGA) / 640×480 pixels (VGA)
+- **Range Modes**: 2 meters and 4 meters
+- **Measurement Accuracy**: Within 2 cm
+- **Connection Methods**: CSI and USB interfaces
+- **Power Requirements**: 5V 2A external power supply
+- **Technology**: Phase-difference based TOF measurement using modulated light pulses
+
+### Key Features
+
+- **Real-time Depth Visualization**: Live depth data display with confidence filtering
+- **3D Point Cloud Generation**: Convert depth data to 3D point clouds using Open3D
+- **ROS2 Integration**: Publish depth data and point clouds via ROS2 topics
+- **Multi-language Support**: C++, Python, and C examples
+- **Interactive Controls**: Mouse selection for distance measurement
+- **Data Export**: Save depth data and point clouds to files
+- **Cross-platform**: Support for Raspberry Pi, Jetson, and other Linux platforms
 
 ## Quick Start
 
-### Clone this repository
+### Prerequisites
 
-Clone this repository and enter the directory.
+- Linux-based system (Raspberry Pi, Jetson, or compatible platform)
+- Python 3.6+ (for Python examples)
+- CMake 3.10+ (for C++ compilation)
+- OpenCV 4.0+ (for image processing)
+- Open3D (for 3D point cloud visualization)
+- ROS2 (for ROS2 integration)
 
-```shell
-  git clone https://github.com/ArduCAM/Arducam_tof_camera.git
-  cd Arducam_tof_camera
+### Installation
+
+#### 1. Clone the Repository
+
+```bash
+git clone https://github.com/ArduCAM/Arducam_tof_camera.git
+cd Arducam_tof_camera
 ```
 
-### Install dependencies for Raspberry Pi
+#### 2. Install Dependencies
 
-> Run in the Arducam_tof_camera folder
-> Whatever you want to run the C/C++ examples or Python examples, you need to install the dependencies.
-
-```shell
-  ./Install_dependencies.sh
+**For Raspberry Pi:**
+```bash
+./Install_dependencies.sh
 ```
 
-> Run the setup_rock_5a.sh if on rock 5a platform.
-
-```shell
-  ./setup_rock_5a.sh
+**For Rock 5A platform:**
+```bash
+./setup_rock_5a.sh
 ```
 
-### Install dependencies for Jetson
-
-> Run in the Arducam_tof_camera folder
-> Whatever you want to run the C/C++ examples or Python examples, you need to install the dependencies.
-
-```shell
-  ./Install_dependencies_jetson.sh
+**For Jetson platforms:**
+```bash
+./Install_dependencies_jetson.sh
 ```
 
-## Run Examples
+#### 3. Hardware Setup
 
-> Platform: Raspberry Pi or Jetson
+1. Connect the TOF camera to your device via CSI or USB interface
+2. Connect the external 5V 2A power supply to the camera
+3. Ensure proper camera mounting and positioning
 
-### Depth Examples
+## Running Examples
 
-#### Python
+### Depth Visualization Examples
 
-##### Run
+#### Python Examples
 
-###### Python Example
-
-> Run in the example/python folder
-
-```shell
-  cd example/python
+Navigate to the Python examples directory:
+```bash
+cd example/python
 ```
 
-```shell
-  python3 preview_depth.py
-  #or
-  python3 capture_raw.py
+**Depth Preview with Interactive Controls:**
+```bash
+python3 preview_depth.py
+```
+- Real-time depth visualization with confidence filtering
+- Mouse interaction for distance measurement
+- Dynamic confidence threshold adjustment (VGA cameras only)
+- Press 'q' to exit
+
+**Raw Data Capture:**
+```bash
+python3 capture_raw.py
+```
+- Display raw sensor data before depth processing
+- Useful for debugging and calibration
+- Press 'q' to exit
+
+#### C/C++ Examples
+
+**Compile the examples:**
+```bash
+./compile.sh
 ```
 
-#### C/C++
+**Run C++ Depth Preview:**
+```bash
+cd build/example/cpp
+./preview_depth
+```
+- Interactive depth visualization with mouse selection
+- FPS monitoring
+- Press 's' to save depth data, 'q' or ESC to exit
 
-##### Compile
+**Run C++ Raw Data Capture:**
+```bash
+cd build/example/cpp
+./capture_raw
+```
+- Raw sensor data visualization
+- Press 'q' or ESC to exit
 
-> Run in the Arducam_tof_camera folder
+**Run C Example:**
+```bash
+cd build/example/c
+./preview_depth_c
+```
+- Basic depth frame capture and display
 
-```shell
-  ./compile.sh
+### 3D Point Cloud Visualization
+
+#### Prerequisites
+
+Install Open3D development libraries:
+```bash
+sudo apt update
+sudo apt-get install libopen3d-dev
 ```
 
-##### Run
+#### Compile Point Cloud Example
 
-###### C Example
-
-> Run in the build/example/c folder
-
-```shell
-  cd build/example/c
+```bash
+./compile_pointcloud.sh
 ```
 
-```shell
-  ./preview_depth_c
+#### Run 3D Point Cloud Preview
+
+```bash
+cd build/open3d_preview
+./preview_pointcloud
 ```
 
-###### C++ Example
+**Features:**
+- Real-time 3D point cloud visualization using Open3D
+- Interactive depth preview window
+- Point cloud saving functionality (PCD format)
+- Depth data saving functionality (RAW format)
+- Dynamic confidence threshold adjustment
+- Mouse interaction for region selection
 
-> Run in the build/example/cpp folder
+**Controls:**
+- **ESC or 'q'**: Exit application
+- **'s'**: Save current point cloud as PCD file
+- **'r'**: Save current depth data as RAW file
+- **'+/-' or '.,'**: Adjust confidence threshold
+- **'[/]'**: Adjust confidence threshold by 5
+- **Mouse**: Select regions for distance measurement
 
-```shell
-  cd build/example/cpp
+**Troubleshooting:**
+If you don't see the point cloud window, try setting the environment variable:
+```bash
+export MESA_GL_VERSION_OVERRIDE=4.5
+./preview_pointcloud
 ```
 
-```shell
-  ./preview_depth
-  #or
-  ./capture_raw
+### ROS2 Integration
+
+#### Prerequisites
+
+- ROS2 (Humble, Foxy, or compatible version)
+- Python packages: `rclpy`, `sensor_msgs`, `sensor_msgs_py`
+
+#### Build ROS2 Package
+
+```bash
+cd ros2_publisher
+./build.sh
 ```
 
-### Point Cloud Examples
+#### Run ROS2 Publisher
 
-<!-- #### Python -->
-
-#### C/C++
-
-##### Dependencies
-
-```Shell
-  sudo apt update
-  sudo apt-get install libopen3d-dev 
+```bash
+./run.sh
 ```
 
-##### Compile
+**Published Topics:**
+- `/point_cloud` (sensor_msgs/PointCloud2): 3D point cloud data
+- `/depth_frame` (std_msgs/Float32MultiArray): Raw depth data array
 
-> Run in the Arducam_tof_camera folder
+**Usage with RViz2:**
+1. Start the publisher: `./run.sh`
+2. Launch RViz2: `rviz2`
+3. Add a PointCloud2 display and set the topic to `/point_cloud`
+4. Add a TF frame for the camera if needed
 
-```shell
-  ./compile_pointcloud.sh
-```
+## API Documentation
 
-##### Run
+### Core Classes and Functions
 
-> Run in the build/open3d_preview folder
-> If you do not see a point cloud window, please try adding the environment variable `export MESA_GL_VERSION_OVERRIDE=4.5` before running the program.
+#### ArducamTOFCamera (C++)
+- `open(Connection, int)`: Initialize camera connection
+- `start(FrameType)`: Start frame capture
+- `requestFrame(int)`: Request a frame with timeout
+- `getControl(Control, void*)`: Get camera control value
+- `setControl(Control, int)`: Set camera control value
+- `getCameraInfo()`: Get camera information
+- `releaseFrame(FrameBuffer*)`: Release frame buffer
+- `stop()`: Stop frame capture
+- `close()`: Close camera connection
 
-```shell
-  cd build/open3d_preview
-```
+#### ArducamCamera (Python)
+- `open(Connection, int)`: Initialize camera connection
+- `start(FrameType)`: Start frame capture
+- `requestFrame(int)`: Request a frame with timeout
+- `getControl(Control)`: Get camera control value
+- `setControl(Control, int)`: Set camera control value
+- `getCameraInfo()`: Get camera information
+- `releaseFrame(Frame)`: Release frame
+- `stop()`: Stop frame capture
+- `close()`: Close camera connection
 
-```shell
-  ./preview_pointcloud
-```
+### Frame Types
+- `DEPTH_FRAME`: Processed depth data
+- `RAW_FRAME`: Raw sensor data
+- `CONFIDENCE_FRAME`: Confidence/amplitude data
+
+### Connection Types
+- `CSI`: Camera Serial Interface
+- `USB`: USB connection
+
+### Device Types
+- `HQVGA`: 240×180 resolution
+- `VGA`: 640×480 resolution
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Camera not detected:**
+   - Check power supply connection (5V 2A)
+   - Verify CSI/USB connection
+   - Check camera permissions
+
+2. **Poor depth quality:**
+   - Adjust confidence threshold
+   - Check lighting conditions
+   - Verify camera range setting
+
+3. **Low frame rate:**
+   - Check system resources
+   - Reduce processing load
+   - Verify camera settings
+
+4. **Open3D visualization issues:**
+   - Set `MESA_GL_VERSION_OVERRIDE=4.5`
+   - Check OpenGL drivers
+   - Verify Open3D installation
+
+### Performance Optimization
+
+- Use appropriate confidence thresholds for your environment
+- Consider reducing resolution for higher frame rates
+- Optimize processing pipeline for your specific use case
+- Monitor system resources during operation
+
+## Contributing
+
+We welcome contributions to improve the SDK. Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with proper documentation
+4. Test on multiple platforms
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+## Support
+
+For technical support and questions:
+- GitHub Issues: [Create an issue](https://github.com/ArduCAM/Arducam_tof_camera/issues)
+- Documentation: Check the inline code documentation
+- Examples: Refer to the example applications for usage patterns

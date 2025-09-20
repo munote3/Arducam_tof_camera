@@ -1,3 +1,34 @@
+/**
+ * @file preview_pointcloud.cpp
+ * @brief Arducam TOF Camera 3D Point Cloud Preview Application
+ * 
+ * This application demonstrates how to capture depth data from the Arducam TOF camera
+ * and visualize it as a real-time 3D point cloud using Open3D. It provides interactive
+ * 3D visualization with the ability to save point clouds and depth data.
+ * 
+ * Features:
+ * - Real-time 3D point cloud visualization using Open3D
+ * - Interactive depth preview with confidence filtering
+ * - Point cloud saving functionality (PCD format)
+ * - Depth data saving functionality (RAW format)
+ * - Dynamic confidence threshold adjustment
+ * - Mouse interaction for region selection
+ * - FPS monitoring and display
+ * - Support for both VGA and HQVGA camera types
+ * 
+ * Controls:
+ * - ESC or 'q': Exit application
+ * - 's': Save current point cloud as PCD file
+ * - 'r': Save current depth data as RAW file
+ * - '+/-' or '.,': Adjust confidence threshold
+ * - '[/]': Adjust confidence threshold by 5
+ * - Mouse: Select regions for distance measurement
+ * 
+ * @author Arducam
+ * @version 1.0
+ * @date 2024
+ */
+
 #include "ArducamTOFCamera.hpp"
 // #include <atomic>
 #include <chrono>
@@ -11,11 +42,17 @@
 #include <Eigen/Dense>
 #include <open3d/Open3D.h>
 
+// ============================================================================
+// Configuration Constants
+// ============================================================================
+
 #define LOCAL        static inline
-// MAX_DISTANCE value modifiable  is 2 or 4
+// MAX_DISTANCE value modifiable is 2000 or 4000
+// 2000 = 2 meters range, 4000 = 4 meters range
 #define MAX_DISTANCE 4000
 #define WITH_VT_100  1
 
+// VT100 escape sequences for terminal formatting
 #if WITH_VT_100
 #define ESC(x) "\033" x
 #define NL     ESC("[K\n")
@@ -26,36 +63,108 @@
 
 using namespace Arducam;
 
-cv::Rect seletRect(0, 0, 0, 0);
-cv::Rect followRect(0, 0, 0, 0);
-int max_width = 640;
-int max_height = 480;
-int max_range = 0;
-bool enable_confidence_ct = false;
-int confidence_value = 0;
-// std::atomic<int> confidence_value{0};
+// ============================================================================
+// Global Variables
+// ============================================================================
 
+/**
+ * @brief Rectangle for selected region (where user clicked)
+ * Used for distance measurement at specific points
+ */
+cv::Rect seletRect(0, 0, 0, 0);
+
+/**
+ * @brief Rectangle for mouse follow region (current mouse position)
+ * Provides visual feedback of current mouse position
+ */
+cv::Rect followRect(0, 0, 0, 0);
+
+/**
+ * @brief Maximum width of the camera frame
+ * Updated dynamically based on camera resolution
+ */
+int max_width = 640;
+
+/**
+ * @brief Maximum height of the camera frame
+ * Updated dynamically based on camera resolution
+ */
+int max_height = 480;
+
+/**
+ * @brief Current maximum range setting of the camera
+ * Retrieved from camera control settings
+ */
+int max_range = 0;
+
+/**
+ * @brief Flag to enable confidence threshold control
+ * Only enabled for VGA cameras that support confidence
+ */
+bool enable_confidence_ct = false;
+
+/**
+ * @brief Confidence threshold for depth filtering
+ * Values below this threshold are considered unreliable and filtered out
+ */
+int confidence_value = 0;
+// std::atomic<int> confidence_value{0};  // Alternative atomic version
+
+// ============================================================================
+// Callback Functions
+// ============================================================================
+
+/**
+ * @brief Callback function for confidence threshold changes
+ * 
+ * This function is called when the confidence trackbar value changes.
+ * It updates the global confidence threshold for depth filtering.
+ * 
+ * @param pos New confidence threshold value (0-255)
+ * @param userdata User data pointer (unused)
+ */
 void on_confidence_changed(int pos, void* userdata)
 {
     confidence_value = pos;
 }
 
+/**
+ * @brief Mouse callback function for interactive region selection
+ * 
+ * Handles mouse events for selecting regions of interest in the depth image.
+ * Creates 8x8 pixel rectangles for distance measurement and visual feedback.
+ * 
+ * Mouse Events:
+ * - Left button down: Start selection (currently unused)
+ * - Left button up: Set selected rectangle for distance measurement
+ * - Mouse move: Update follow rectangle for visual feedback
+ * 
+ * @param event Mouse event type (click, move, etc.)
+ * @param x Mouse x-coordinate
+ * @param y Mouse y-coordinate
+ * @param flags Additional mouse flags (unused)
+ * @param param User parameter (unused)
+ */
 void onMouse(int event, int x, int y, int flags, void* param)
 {
+    // Ensure mouse position is within valid bounds (4 pixels from edges)
     if (x < 4 || x > (max_width - 4) || y < 4 || y > (max_height - 4))
         return;
+        
     switch (event) {
     case cv::EVENT_LBUTTONDOWN:
-
+        // Start of selection (currently not used)
         break;
 
     case cv::EVENT_LBUTTONUP:
+        // Set selected rectangle for distance measurement (8x8 pixels around click point)
         seletRect.x = x - 4 ? x - 4 : 0;
         seletRect.y = y - 4 ? y - 4 : 0;
         seletRect.width = 8;
         seletRect.height = 8;
         break;
     default:
+        // Update follow rectangle for visual feedback (8x8 pixels around mouse position)
         followRect.x = x - 4 ? x - 4 : 0;
         followRect.y = y - 4 ? y - 4 : 0;
         followRect.width = 8;
@@ -64,6 +173,21 @@ void onMouse(int event, int x, int y, int flags, void* param)
     }
 }
 
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * @brief Display and calculate FPS (Frames Per Second)
+ * 
+ * This function tracks the number of frames processed and calculates
+ * the current FPS, displaying it every second. Uses high-resolution
+ * timing for accurate measurements and VT100 escape sequences for
+ * clean terminal output.
+ * 
+ * The FPS is calculated by counting frames over a 1-second interval
+ * and resetting the counter after each display.
+ */
 LOCAL void display_fps(void)
 {
     using std::chrono::high_resolution_clock;
@@ -284,19 +408,59 @@ bool pc_loop(ArducamTOFCamera& tof, std::shared_ptr<open3d::geometry::PointCloud
     return true;
 }
 
+// ============================================================================
+// Main Application
+// ============================================================================
+
+/**
+ * @brief Main function for the Arducam TOF Camera 3D Point Cloud Preview Application
+ * 
+ * This function initializes the TOF camera, sets up Open3D visualization,
+ * and runs the main processing loop for real-time 3D point cloud visualization.
+ * 
+ * Command line arguments:
+ * - argv[1]: Camera configuration file path (optional, use "-" for default)
+ * - argv[2]: Initial confidence threshold value (optional)
+ * 
+ * The application flow:
+ * 1. Parse command line arguments
+ * 2. Initialize and open the TOF camera
+ * 3. Start depth frame capture
+ * 4. Configure camera settings
+ * 5. Set up Open3D visualization and OpenCV windows
+ * 6. Run main processing loop
+ * 7. Clean up resources on exit
+ * 
+ * @param argc Number of command line arguments
+ * @param argv Command line arguments array
+ * @return 0 on success, -1 on error
+ */
 int main(int argc, char* argv[])
 {
+    // ========================================================================
+    // Command Line Argument Parsing
+    // ========================================================================
+    
     ArducamTOFCamera tof;
     const char* cfg_path = nullptr;
 
+    // Parse confidence threshold from command line (optional)
     if (argc > 2) {
         confidence_value = atoi(argv[2]);
     }
+    
+    // Parse configuration file path from command line (optional)
     if (argc > 1) {
         if (strcmp(argv[1], "-") != 0) {
             cfg_path = argv[1];
         }
     }
+    
+    // ========================================================================
+    // Camera Initialization
+    // ========================================================================
+    
+    // Open camera connection
     if (cfg_path != nullptr) {
         if (tof.openWithFile(cfg_path)) {
             std::cerr << "Failed to open camera with cfg: " << cfg_path << std::endl;
